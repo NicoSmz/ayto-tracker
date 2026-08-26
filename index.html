@@ -1,0 +1,1190 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#17130f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AYTO">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Crect width=%2264%22 height=%2264%22 rx=%2214%22 fill=%22%2317130f%22/%3E%3Ccircle cx=%2224%22 cy=%2232%22 r=%229%22 fill=%22%234fa97f%22/%3E%3Ccircle cx=%2242%22 cy=%2232%22 r=%229%22 fill=%22%23f6efe7%22/%3E%3C/svg%3E">
+<title>AYTO Tracker</title>
+<style>
+  :root {
+    --bg: #17130f;
+    --surface: #211c17;
+    --surface-2: #2b241d;
+    --line: #3a322a;
+    --line-soft: #2f2822;
+    --text: #f6efe7;
+    --muted: #a2968a;
+    --faint: #6d6156;
+    --accent: #4fa97f;
+    --accent-deep: #2f7d5c;
+    --danger: #d1836f;
+    --radius: 12px;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) calc(env(safe-area-inset-bottom) + 32px) env(safe-area-inset-left);
+  }
+
+  .wrap { max-width: 760px; margin: 0 auto; padding: 20px 16px 0; }
+
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  header h1 { font-size: 20px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+  header .sub { font-size: 13px; color: var(--muted); margin: 2px 0 0; }
+  .head-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+  button {
+    font: inherit;
+    font-size: 15px;
+    border-radius: 9px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--text);
+    padding: 9px 14px;
+    cursor: pointer;
+    transition: background 160ms ease, border-color 160ms ease;
+  }
+  button:hover { background: var(--surface-2); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button.primary { background: var(--accent-deep); border-color: var(--accent-deep); color: #f6efe7; font-weight: 600; }
+  button.primary:hover { background: var(--accent); border-color: var(--accent); }
+  button.ghost { background: transparent; border-color: transparent; color: var(--muted); padding: 6px 8px; font-size: 14px; }
+  button.ghost:hover { background: var(--surface); color: var(--text); }
+  button.small { font-size: 14px; padding: 6px 10px; }
+  button.danger { color: var(--danger); }
+  button[disabled] { opacity: .45; cursor: default; }
+
+  input, select {
+    font: inherit;
+    font-size: 15px;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    padding: 9px 10px;
+    width: 100%;
+    appearance: none;
+  }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+  select { background-image: none; }
+
+  .label { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--faint); font-weight: 600; }
+
+  section { margin-bottom: 26px; }
+  .section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; gap: 10px; }
+
+  /* Matrix */
+  .matrix-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--line-soft); border-radius: var(--radius); background: var(--surface); }
+  table.matrix { border-collapse: separate; border-spacing: 0; width: 100%; font-variant-numeric: tabular-nums; }
+  table.matrix th, table.matrix td { padding: 0; text-align: center; }
+  table.matrix thead th {
+    font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: .03em;
+    padding: 10px 6px; border-bottom: 1px solid var(--line-soft); white-space: nowrap; min-width: 52px;
+  }
+  table.matrix tbody th {
+    font-size: 13px; font-weight: 500; color: var(--text); text-align: left;
+    padding: 0 12px 0 12px; white-space: nowrap;
+    position: sticky; left: 0; z-index: 2;
+    background: var(--surface); border-right: 1px solid var(--line-soft);
+    min-width: 84px; max-width: 120px; overflow: hidden; text-overflow: ellipsis;
+  }
+  table.matrix thead th:first-child { position: sticky; left: 0; z-index: 3; background: var(--surface); border-right: 1px solid var(--line-soft); }
+  table.matrix td { height: 40px; font-size: 14px; }
+  table.matrix tbody tr + tr th, table.matrix tbody tr + tr td { border-top: 1px solid var(--line-soft); }
+  .cell { display: flex; align-items: center; justify-content: center; height: 40px; margin: 0 3px; border-radius: 7px; font-variant-numeric: tabular-nums; }
+  .cell.zero { color: var(--faint); }
+  .cell.sure { background: var(--accent-deep); color: #f6efe7; font-weight: 600; }
+
+  .status { font-size: 13px; color: var(--muted); margin-top: 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+  .dot.warn { background: var(--danger); }
+  .dot.busy { background: var(--muted); }
+
+  .notice { border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius); padding: 16px; color: var(--muted); font-size: 14px; }
+  .notice.alarm { border-color: var(--danger); color: var(--text); }
+  .notice strong { color: var(--text); font-weight: 600; }
+
+  .actions { display: flex; gap: 10px; margin-top: 14px; }
+  .actions button { flex: 1; }
+
+  /* History */
+  ul.history { list-style: none; margin: 0; padding: 0; }
+  ul.history li {
+    border: 1px solid var(--line-soft); border-radius: var(--radius);
+    background: var(--surface); padding: 12px 14px; margin-bottom: 8px;
+    display: flex; align-items: flex-start; gap: 12px;
+  }
+  .entry { flex: 1; min-width: 0; cursor: pointer; }
+  .entry .top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .entry .title { font-size: 15px; font-weight: 600; }
+  .entry .meta { font-size: 13px; color: var(--muted); }
+  .entry .pairs { font-size: 13px; color: var(--muted); margin-top: 4px; line-height: 1.6; word-break: break-word; }
+  .tag { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+  .tag.yes { color: var(--accent); border-color: var(--accent-deep); }
+  .tag.no { color: var(--danger); border-color: #5a3a31; }
+
+  /* Dialog */
+  dialog {
+    border: 1px solid var(--line); background: var(--surface); color: var(--text);
+    border-radius: 16px; padding: 0; width: min(560px, calc(100vw - 24px)); max-height: 88vh;
+  }
+  dialog[open] { display: flex; flex-direction: column; }
+  dialog::backdrop { background: rgba(8, 6, 4, .72); }
+  .dlg-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; border-bottom: 1px solid var(--line-soft); position: sticky; top: 0; background: var(--surface); border-radius: 16px 16px 0 0; }
+  .dlg-head h2 { font-size: 17px; font-weight: 600; margin: 0; }
+  .dlg-body { padding: 16px 18px; overflow-y: auto; flex: 1; min-height: 0; }
+  .dlg-foot { padding: 14px 18px; border-top: 1px solid var(--line-soft); display: flex; gap: 10px; background: var(--surface); border-radius: 0 0 16px 16px; flex-shrink: 0; }
+  .dlg-foot button { flex: 1; }
+  .dlg-foot.stacked { flex-direction: column; align-items: stretch; gap: 10px; }
+  .foot-row { display: flex; gap: 10px; align-items: flex-end; }
+  .foot-row button { flex: 1; }
+  .lights-field { display: flex; flex-direction: column; gap: 5px; width: 104px; flex-shrink: 0; }
+  .lights-field input { text-align: center; }
+  .dlg-foot .error { margin-top: 0; }
+  .dlg-foot .error:empty { display: none; }
+  button.remove { background: transparent; border-color: transparent; color: var(--muted); font-size: 20px; line-height: 1; padding: 3px 12px; }
+  button.remove:hover { background: var(--surface-2); color: var(--danger); }
+
+  .seat-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
+  .seat-row .name { width: 92px; flex-shrink: 0; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .field { margin-bottom: 14px; }
+  .field > .label { display: block; margin-bottom: 6px; }
+  .field-row { display: flex; gap: 10px; align-items: center; }
+  .hint { font-size: 13px; color: var(--muted); margin-top: 10px; line-height: 1.6; }
+  .error { font-size: 14px; color: var(--danger); margin-top: 10px; }
+
+  .name-list { list-style: none; margin: 0 0 10px; padding: 0; }
+  .name-list li { display: flex; align-items: center; gap: 8px; padding: 5px 0; }
+  .name-list li span { flex: 1; font-size: 15px; }
+  .col-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+  .choice { display: flex; gap: 8px; }
+  .choice button { flex: 1; }
+  .choice button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-deep); font-weight: 600; }
+
+  @media (max-width: 520px) {
+    .col-2 { grid-template-columns: 1fr; gap: 14px; }
+    .seat-row .name { width: 74px; }
+    header h1 { font-size: 18px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header>
+    <div>
+      <h1>AYTO Tracker</h1>
+      <p class="sub" id="setupSummary"></p>
+    </div>
+    <div class="head-actions">
+      <button class="ghost" id="btnSetup">Kandidaten</button>
+      <button class="ghost" id="btnData">Daten</button>
+    </div>
+  </header>
+
+  <section id="matrixSection">
+    <div class="section-head">
+      <span class="label">Perfect-Match-Chance</span>
+    </div>
+    <div id="matrixHost"></div>
+    <div class="status" id="status"></div>
+    <div class="actions">
+      <button class="primary" id="btnNight">Matching Night</button>
+      <button id="btnBox">Match Box</button>
+    </div>
+  </section>
+
+  <section id="historySection">
+    <div class="section-head">
+      <span class="label">Verlauf</span>
+    </div>
+    <ul class="history" id="history"></ul>
+    <div class="notice" id="historyEmpty" hidden>Noch nichts eingetragen. Fang mit der ersten Matching Night an.</div>
+  </section>
+
+</div>
+
+<!-- Matching Night -->
+<dialog id="dlgNight">
+  <div class="dlg-head">
+    <h2 id="nightTitle">Matching Night</h2>
+    <button class="ghost" data-close>Schließen</button>
+  </div>
+  <div class="dlg-body">
+    <div id="seatRows"></div>
+    <div class="hint" id="nightHint"></div>
+  </div>
+  <div class="dlg-foot stacked">
+    <div class="error" id="nightError"></div>
+    <div class="foot-row">
+      <label class="lights-field">
+        <span class="label">Lichter</span>
+        <input type="number" id="nightLights" min="0" step="1" inputmode="numeric">
+      </label>
+      <button class="primary" id="nightSave">Speichern</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- Match Box -->
+<dialog id="dlgBox">
+  <div class="dlg-head">
+    <h2 id="boxTitle">Match Box</h2>
+    <button class="ghost" data-close>Schließen</button>
+  </div>
+  <div class="dlg-body">
+    <div class="col-2">
+      <div class="field"><span class="label">Mann</span><select id="boxMan"></select></div>
+      <div class="field"><span class="label">Frau</span><select id="boxWoman"></select></div>
+    </div>
+    <div class="field">
+      <span class="label">Ergebnis</span>
+      <div class="choice">
+        <button type="button" id="boxYes" aria-pressed="false">Match</button>
+        <button type="button" id="boxNo" aria-pressed="false">No Match</button>
+      </div>
+    </div>
+    <div class="error" id="boxError"></div>
+  </div>
+  <div class="dlg-foot">
+    <button data-close>Abbrechen</button>
+    <button class="primary" id="boxSave">Speichern</button>
+  </div>
+</dialog>
+
+<!-- Setup -->
+<dialog id="dlgSetup">
+  <div class="dlg-head">
+    <h2>Kandidaten</h2>
+    <button class="ghost" data-close>Schließen</button>
+  </div>
+  <div class="dlg-body">
+    <div class="col-2">
+      <div>
+        <span class="label">Männer</span>
+        <ul class="name-list" id="menList"></ul>
+        <div class="field-row">
+          <input id="menInput" placeholder="Name" autocomplete="off">
+          <button class="small" id="menAdd">Hinzu</button>
+        </div>
+      </div>
+      <div>
+        <span class="label">Frauen</span>
+        <ul class="name-list" id="womenList"></ul>
+        <div class="field-row">
+          <input id="womenInput" placeholder="Name" autocomplete="off">
+          <button class="small" id="womenAdd">Hinzu</button>
+        </div>
+      </div>
+    </div>
+    <div class="hint" id="setupHint"></div>
+  </div>
+  <div class="dlg-foot">
+    <button class="primary" data-close>Fertig</button>
+  </div>
+</dialog>
+
+<!-- Daten -->
+<dialog id="dlgData">
+  <div class="dlg-head">
+    <h2>Daten</h2>
+    <button class="ghost" data-close>Schließen</button>
+  </div>
+  <div class="dlg-body">
+    <p class="hint" style="margin-top:0">Alles liegt nur in diesem Browser. Sichere ab und zu eine Datei, dann ist nichts weg, falls der Browserspeicher geleert wird.</p>
+    <div class="actions" style="margin-top:16px">
+      <button id="btnExport">Sichern</button>
+      <button id="btnImport">Laden</button>
+    </div>
+    <div class="actions">
+      <button class="danger" id="btnReset">Alles zurücksetzen</button>
+    </div>
+    <input type="file" id="fileInput" accept="application/json,.json" hidden>
+    <div class="error" id="dataError"></div>
+  </div>
+  <div class="dlg-foot">
+    <button class="primary" data-close>Fertig</button>
+  </div>
+</dialog>
+
+<script id="solver-src" type="text/plain">
+// solver:start
+function solve(input) {
+  var n = input.men | 0, m = input.women | 0;
+  var nights = input.nights || [];
+  var boxes = input.boxes || [];
+
+  if (n < 1 || m < 1) return { ok: false, reason: 'empty' };
+  if (Math.abs(n - m) > 1) return { ok: false, reason: 'sizes' };
+
+  // The larger group is assigned onto the smaller one. When the groups differ by
+  // one, exactly one member of the smaller group is picked twice: the Doppelmatch.
+  var bigIsWomen = m >= n;
+  var B = bigIsWomen ? m : n;
+  var S = bigIsWomen ? n : m;
+  var maxDouble = B - S; // 0 or 1
+
+  function bigOf(man, woman) { return bigIsWomen ? woman : man; }
+  function smallOf(man, woman) { return bigIsWomen ? man : woman; }
+
+  var K = nights.length;
+  var seats = [];
+  var lights = new Int32Array(K);
+  for (var k = 0; k < K; k++) {
+    var seat = new Int32Array(B);
+    for (var i = 0; i < B; i++) seat[i] = -1;
+    var pairs = nights[k].pairs || [];
+    for (var q = 0; q < pairs.length; q++) {
+      var man = pairs[q][0], woman = pairs[q][1];
+      if (man < 0 || man >= n || woman < 0 || woman >= m) return { ok: false, reason: 'badnight' };
+      var b = bigOf(man, woman), sm = smallOf(man, woman);
+      if (seat[b] !== -1) return { ok: false, reason: 'badnight' };
+      seat[b] = sm;
+    }
+    for (var i2 = 0; i2 < B; i2++) if (seat[i2] === -1) return { ok: false, reason: 'badnight' };
+    var lt = nights[k].lights | 0;
+    if (lt < 0 || lt > B) return { ok: false, reason: 'badnight' };
+    seats.push(seat);
+    lights[k] = lt;
+  }
+
+  var forced = new Int32Array(B);
+  for (var f = 0; f < B; f++) forced[f] = -1;
+  var banned = new Uint8Array(B * S);
+  var impossible = false;
+  for (var x = 0; x < boxes.length; x++) {
+    var bx = boxes[x];
+    if (bx.man < 0 || bx.man >= n || bx.woman < 0 || bx.woman >= m) return { ok: false, reason: 'badbox' };
+    var bb = bigOf(bx.man, bx.woman), ss = smallOf(bx.man, bx.woman);
+    if (bx.match) {
+      if (forced[bb] !== -1 && forced[bb] !== ss) impossible = true;
+      forced[bb] = ss;
+    } else {
+      banned[bb * S + ss] = 1;
+    }
+  }
+  for (var c = 0; c < B; c++) if (forced[c] !== -1 && banned[c * S + forced[c]]) impossible = true;
+  var forcedUse = new Int32Array(S);
+  for (var c2 = 0; c2 < B; c2++) if (forced[c2] !== -1) forcedUse[forced[c2]]++;
+  var forcedDoubles = 0;
+  for (var c3 = 0; c3 < S; c3++) {
+    if (forcedUse[c3] > 1 + maxDouble) impossible = true;
+    if (forcedUse[c3] === 2) forcedDoubles++;
+  }
+  if (forcedDoubles > maxDouble) impossible = true;
+  if (impossible) return { ok: true, mode: 'exact', total: 0, counts: null, B: B, S: S, bigIsWomen: bigIsWomen };
+
+  // Confirmed members go first: they do not branch at all and shrink everything after them.
+  var order = [];
+  for (var o1 = 0; o1 < B; o1++) if (forced[o1] !== -1) order.push(o1);
+  for (var o2 = 0; o2 < B; o2++) if (forced[o2] === -1) order.push(o2);
+
+  // Count every valid constellation. Returns null when the node budget runs out.
+  function runExact(budget) {
+    var counts = new Float64Array(B * S);
+    var assign = new Int32Array(B);
+    var used = new Int32Array(S);
+    var hits = new Int32Array(K);
+    var unused = S, doubles = 0, total = 0, nodes = 0, overflow = false;
+
+    function dfs(i) {
+      if (nodes > budget) { overflow = true; return; }
+      if (i === B) {
+        total++;
+        for (var b0 = 0; b0 < B; b0++) counts[b0 * S + assign[b0]]++;
+        nodes += B;
+        return;
+      }
+      var b = order[i];
+      var rem = B - i - 1;
+      var lo = forced[b] === -1 ? 0 : forced[b];
+      var hi = forced[b] === -1 ? S - 1 : forced[b];
+      for (var s = lo; s <= hi; s++) {
+        nodes++;
+        if (banned[b * S + s]) continue;
+        var u = used[s];
+        if (u > maxDouble) continue;
+        var nd = doubles + (u === 1 ? 1 : 0);
+        if (nd > maxDouble) continue;
+        var nu = unused - (u === 0 ? 1 : 0);
+        // Every remaining seat must either take an untouched member or create the
+        // one allowed double. Anything else can never complete.
+        if (rem !== nu + (maxDouble - nd)) continue;
+        var fits = true;
+        for (var k2 = 0; k2 < K; k2++) {
+          var h = hits[k2] + (seats[k2][b] === s ? 1 : 0);
+          if (h > lights[k2] || h + rem < lights[k2]) { fits = false; break; }
+        }
+        if (!fits) continue;
+
+        assign[b] = s; used[s] = u + 1; doubles = nd; unused = nu;
+        for (var k3 = 0; k3 < K; k3++) if (seats[k3][b] === s) hits[k3]++;
+        dfs(i + 1);
+        for (var k4 = 0; k4 < K; k4++) if (seats[k4][b] === s) hits[k4]--;
+        used[s] = u; doubles = doubles - (u === 1 ? 1 : 0); unused = unused + (u === 0 ? 1 : 0);
+        if (overflow) return;
+      }
+    }
+
+    dfs(0);
+    if (overflow) return null;
+    return {
+      ok: true, mode: 'exact', total: total,
+      counts: total > 0 ? Array.prototype.slice.call(counts) : null,
+      B: B, S: S, bigIsWomen: bigIsWomen
+    };
+  }
+
+  // Draw constellations uniformly and keep the ones that survive every constraint.
+  function runSample(attempts, target) {
+    var scounts = new Float64Array(B * S);
+    var pool = new Int32Array(B);
+    var valid = 0, tries = 0;
+
+    for (tries = 0; tries < attempts && valid < target; tries++) {
+      for (var q2 = 0; q2 < S; q2++) pool[q2] = q2;
+      if (maxDouble === 1) pool[S] = (Math.random() * S) | 0;
+      for (var r = B - 1; r > 0; r--) {
+        var j = (Math.random() * (r + 1)) | 0;
+        var tmp = pool[r]; pool[r] = pool[j]; pool[j] = tmp;
+      }
+      var good = true;
+      for (var b2 = 0; b2 < B; b2++) {
+        var v = pool[b2];
+        if (forced[b2] !== -1 && forced[b2] !== v) { good = false; break; }
+        if (banned[b2 * S + v]) { good = false; break; }
+      }
+      if (!good) continue;
+      for (var k5 = 0; k5 < K; k5++) {
+        var hit = 0;
+        var sk = seats[k5];
+        for (var b3 = 0; b3 < B; b3++) if (sk[b3] === pool[b3]) hit++;
+        if (hit !== lights[k5]) { good = false; break; }
+      }
+      if (!good) continue;
+      valid++;
+      for (var b4 = 0; b4 < B; b4++) scounts[b4 * S + pool[b4]]++;
+    }
+
+    return {
+      ok: true, mode: 'sample', total: valid, attempts: tries,
+      counts: valid > 0 ? Array.prototype.slice.call(scounts) : null,
+      B: B, S: S, bigIsWomen: bigIsWomen
+    };
+  }
+
+  // Exact and sampling fail in opposite situations, so try both before giving up.
+  // Cheap exact pass first: small casts and late seasons finish here instantly.
+  var quick = runExact(input.budget === undefined ? 60000000 : input.budget);
+  if (quick) return quick;
+
+  // Too many constellations to count. Early in a season few constraints bite, so
+  // sampling lands plenty of hits and the estimate is tight.
+  var drawn = runSample(input.attempts || 1500000, input.target || 200000);
+  if (drawn.total >= (input.enough === undefined ? 20000 : input.enough)) return drawn;
+
+  // Few hits means the constraints are tight, which is exactly where counting
+  // works. This covers the middle of a season, where neither shortcut alone does.
+  var deep = runExact(input.deepBudget === undefined ? 700000000 : input.deepBudget);
+  if (deep) return deep;
+
+  drawn.rough = true;
+  return drawn;
+}
+// solver:end
+
+if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typeof window === 'undefined') {
+  self.onmessage = function (e) {
+    var out;
+    try { out = solve(e.data.input); }
+    catch (err) { out = { ok: false, reason: 'crash', message: String(err && err.message || err) }; }
+    out.runId = e.data.runId;
+    self.postMessage(out);
+  };
+}
+</script>
+
+<script>
+(function () {
+  'use strict';
+
+  var KEY = 'ayto-tracker';
+  var EMPTY = { version: 1, seq: 0, men: [], women: [], nights: [], boxes: [] };
+  var state = load();
+  var result = null;
+  var busy = false;
+  var runId = 0;
+  var worker = null;
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ---------- persistence ---------- */
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (!raw) return clone(EMPTY);
+      var d = JSON.parse(raw);
+      return normalise(d);
+    } catch (e) {
+      return clone(EMPTY);
+    }
+  }
+
+  function normalise(d) {
+    var out = clone(EMPTY);
+    if (!d || typeof d !== 'object') return out;
+    out.men = Array.isArray(d.men) ? d.men.filter(isName) : [];
+    out.women = Array.isArray(d.women) ? d.women.filter(isName) : [];
+    var n = out.men.length, m = out.women.length;
+    out.nights = (Array.isArray(d.nights) ? d.nights : []).filter(function (x) {
+      return x && Array.isArray(x.pairs) && x.pairs.every(function (p) {
+        return Array.isArray(p) && p[0] >= 0 && p[0] < n && p[1] >= 0 && p[1] < m;
+      });
+    }).map(function (x, i) {
+      return { id: x.id || 'n' + i, seq: typeof x.seq === 'number' ? x.seq : i, pairs: x.pairs.map(function (p) { return [p[0] | 0, p[1] | 0]; }), lights: x.lights | 0 };
+    });
+    out.boxes = (Array.isArray(d.boxes) ? d.boxes : []).filter(function (x) {
+      return x && x.man >= 0 && x.man < n && x.woman >= 0 && x.woman < m;
+    }).map(function (x, i) {
+      return { id: x.id || 'b' + i, seq: typeof x.seq === 'number' ? x.seq : i, man: x.man | 0, woman: x.woman | 0, match: !!x.match };
+    });
+    var maxSeq = 0;
+    out.nights.concat(out.boxes).forEach(function (e) { if (e.seq > maxSeq) maxSeq = e.seq; });
+    out.seq = maxSeq + 1;
+    return out;
+  }
+
+  function isName(s) { return typeof s === 'string' && s.trim().length > 0; }
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); }
+    catch (e) { /* private mode, nothing we can do */ }
+  }
+
+  function nextSeq() { return state.seq++; }
+
+  /* ---------- solver plumbing ---------- */
+
+  function makeWorker() {
+    var src = $('solver-src').textContent;
+    var blob = new Blob([src], { type: 'text/javascript' });
+    var w = new Worker(URL.createObjectURL(blob));
+    w.onmessage = function (e) {
+      if (e.data.runId !== runId) return;
+      busy = false;
+      result = e.data;
+      render();
+    };
+    return w;
+  }
+
+  function recompute() {
+    if (state.men.length === 0 || state.women.length === 0) { result = null; busy = false; render(); return; }
+    runId++;
+    busy = true;
+    if (worker) worker.terminate();
+    worker = makeWorker();
+    worker.postMessage({
+      runId: runId,
+      input: {
+        men: state.men.length,
+        women: state.women.length,
+        nights: state.nights.map(function (x) { return { pairs: x.pairs, lights: x.lights }; }),
+        boxes: state.boxes.map(function (x) { return { man: x.man, woman: x.woman, match: x.match }; })
+      }
+    });
+    render();
+  }
+
+  function shape() {
+    var n = state.men.length, m = state.women.length;
+    var bigIsWomen = m >= n;
+    return {
+      n: n, m: m, bigIsWomen: bigIsWomen,
+      B: bigIsWomen ? m : n,
+      S: bigIsWomen ? n : m,
+      maxDouble: Math.abs(m - n),
+      bigNames: bigIsWomen ? state.women : state.men,
+      smallNames: bigIsWomen ? state.men : state.women,
+      bigLabel: bigIsWomen ? 'Frau' : 'Mann',
+      smallLabel: bigIsWomen ? 'Mann' : 'Frau'
+    };
+  }
+
+  // Probability of (man, woman) being a perfect match, or null when unknown.
+  function chance(man, woman) {
+    if (!result || !result.ok || !result.counts || !result.total) return null;
+    var s = shape();
+    var b = s.bigIsWomen ? woman : man;
+    var sm = s.bigIsWomen ? man : woman;
+    return result.counts[b * s.S + sm] / result.total;
+  }
+
+  /* ---------- rendering ---------- */
+
+  function render() {
+    renderSummary();
+    renderMatrix();
+    renderStatus();
+    renderHistory();
+  }
+
+  function renderSummary() {
+    var n = state.men.length, m = state.women.length;
+    var el = $('setupSummary');
+    if (n === 0 && m === 0) { el.textContent = 'Noch keine Kandidaten'; return; }
+    var txt = n + ' Männer, ' + m + ' Frauen';
+    if (Math.abs(n - m) === 1) txt += ' · ein Doppelmatch';
+    el.textContent = txt;
+  }
+
+  function renderMatrix() {
+    var host = $('matrixHost');
+    host.textContent = '';
+    var n = state.men.length, m = state.women.length;
+
+    if (n === 0 || m === 0) {
+      host.appendChild(notice('Leg zuerst die Kandidaten an. Oben rechts auf <strong>Kandidaten</strong> tippen.', false));
+      return;
+    }
+    if (Math.abs(n - m) > 1) {
+      host.appendChild(notice('Die Gruppen dürfen sich höchstens um eine Person unterscheiden. Aktuell ' + n + ' zu ' + m + '.', true));
+      return;
+    }
+    if (result && !result.ok) {
+      host.appendChild(notice('Die Daten passen nicht zusammen (' + result.reason + '). Prüf den Verlauf.', true));
+      return;
+    }
+    if (result && result.ok && result.total === 0) {
+      host.appendChild(notice('Keine einzige Konstellation passt zu allen Einträgen. Irgendwo im Verlauf steckt ein Fehler, meistens eine falsche Lichterzahl.', true));
+      return;
+    }
+
+    var scroll = document.createElement('div');
+    scroll.className = 'matrix-scroll';
+    var table = document.createElement('table');
+    table.className = 'matrix';
+
+    var thead = document.createElement('thead');
+    var hr = document.createElement('tr');
+    hr.appendChild(document.createElement('th'));
+    state.men.forEach(function (name) {
+      var th = document.createElement('th');
+      th.textContent = name;
+      hr.appendChild(th);
+    });
+    thead.appendChild(hr);
+    table.appendChild(thead);
+
+    var tbody = document.createElement('tbody');
+    state.women.forEach(function (wName, wi) {
+      var tr = document.createElement('tr');
+      var th = document.createElement('th');
+      th.textContent = wName;
+      th.title = wName;
+      tr.appendChild(th);
+      state.men.forEach(function (mName, mi) {
+        var td = document.createElement('td');
+        td.appendChild(cell(mi, wi));
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    scroll.appendChild(table);
+    host.appendChild(scroll);
+  }
+
+  function cell(man, woman) {
+    var div = document.createElement('div');
+    div.className = 'cell';
+    var p = chance(man, woman);
+    if (p === null) { div.textContent = busy ? '' : '–'; div.classList.add('zero'); return div; }
+
+    var estimate = result.mode === 'sample';
+    if (!estimate && p >= 0.9999) {
+      div.classList.add('sure');
+      div.textContent = '100';
+    } else if (!estimate && p <= 0.0001) {
+      div.classList.add('zero');
+      div.textContent = '0';
+    } else if (estimate && p >= 0.995) {
+      div.textContent = '>99';
+      div.style.background = tint(1);
+    } else if (estimate && p <= 0.005) {
+      div.classList.add('zero');
+      div.textContent = '<1';
+    } else {
+      div.textContent = String(Math.round(p * 100));
+      div.style.background = tint(p);
+    }
+    div.title = state.women[woman] + ' + ' + state.men[man] + ': ' + (p * 100).toFixed(1) + ' Prozent';
+    return div;
+  }
+
+  function tint(p) {
+    var a = 0.08 + Math.min(p, 1) * 0.5;
+    return 'rgba(79, 169, 127, ' + a.toFixed(3) + ')';
+  }
+
+  function notice(html, alarm) {
+    var d = document.createElement('div');
+    d.className = 'notice' + (alarm ? ' alarm' : '');
+    d.innerHTML = html;
+    return d;
+  }
+
+  function renderStatus() {
+    var el = $('status');
+    el.textContent = '';
+    if (state.men.length === 0 || state.women.length === 0) return;
+    var dot = document.createElement('span');
+    dot.className = 'dot';
+    var txt = document.createElement('span');
+
+    if (busy) {
+      dot.classList.add('busy');
+      txt.textContent = 'Rechnet ...';
+    } else if (!result || !result.ok) {
+      dot.classList.add('warn');
+      txt.textContent = 'Keine Berechnung möglich';
+    } else if (result.total === 0) {
+      dot.classList.add('warn');
+      txt.textContent = 'Null passende Konstellationen';
+    } else if (result.mode === 'exact') {
+      txt.textContent = 'Exakt gerechnet · ' + fmt(result.total) + ' Konstellationen passen noch';
+    } else {
+      dot.classList.add('busy');
+      txt.textContent = 'Geschätzt aus ' + fmt(result.total) + ' Stichproben · wird exakt, sobald genug Daten da sind';
+    }
+    el.appendChild(dot);
+    el.appendChild(txt);
+  }
+
+  function fmt(x) { return x.toLocaleString('de-DE'); }
+
+  function timeline() {
+    var items = [];
+    state.nights.forEach(function (x) { items.push({ kind: 'night', data: x }); });
+    state.boxes.forEach(function (x) { items.push({ kind: 'box', data: x }); });
+    items.sort(function (a, b) { return a.data.seq - b.data.seq; });
+    return items;
+  }
+
+  function renderHistory() {
+    var ul = $('history');
+    ul.textContent = '';
+    var items = timeline();
+    $('historyEmpty').hidden = items.length > 0;
+
+    var nightNo = 0;
+    items.forEach(function (item) {
+      var li = document.createElement('li');
+      var entry = document.createElement('div');
+      entry.className = 'entry';
+      var top = document.createElement('div');
+      top.className = 'top';
+      var title = document.createElement('span');
+      title.className = 'title';
+      var meta = document.createElement('span');
+      meta.className = 'meta';
+
+      if (item.kind === 'night') {
+        nightNo++;
+        title.textContent = 'Matching Night ' + nightNo;
+        meta.textContent = item.data.lights + (item.data.lights === 1 ? ' Licht' : ' Lichter');
+        top.appendChild(title); top.appendChild(meta);
+        entry.appendChild(top);
+        var pairs = document.createElement('div');
+        pairs.className = 'pairs';
+        pairs.textContent = item.data.pairs.map(function (p) {
+          return state.women[p[1]] + ' + ' + state.men[p[0]];
+        }).join(', ');
+        entry.appendChild(pairs);
+        entry.onclick = function () { openNight(item.data); };
+      } else {
+        title.textContent = 'Match Box';
+        var tag = document.createElement('span');
+        tag.className = 'tag ' + (item.data.match ? 'yes' : 'no');
+        tag.textContent = item.data.match ? 'Match' : 'No Match';
+        meta.textContent = state.women[item.data.woman] + ' + ' + state.men[item.data.man];
+        top.appendChild(title); top.appendChild(tag);
+        entry.appendChild(top);
+        var sub = document.createElement('div');
+        sub.className = 'pairs';
+        sub.textContent = meta.textContent;
+        entry.appendChild(sub);
+        entry.onclick = function () { openBox(item.data); };
+      }
+
+      var del = document.createElement('button');
+      del.className = 'ghost small';
+      del.textContent = 'Löschen';
+      del.onclick = function (ev) {
+        ev.stopPropagation();
+        var what = item.kind === 'night' ? title.textContent : 'die Match Box ' + meta.textContent;
+        if (!confirm(what + ' wirklich löschen?')) return;
+        if (item.kind === 'night') state.nights = state.nights.filter(function (x) { return x !== item.data; });
+        else state.boxes = state.boxes.filter(function (x) { return x !== item.data; });
+        save(); recompute();
+      };
+
+      li.appendChild(entry);
+      li.appendChild(del);
+      ul.appendChild(li);
+    });
+  }
+
+  /* ---------- matching night dialog ---------- */
+
+  var editingNight = null;
+
+  function openNight(existing) {
+    var s = shape();
+    if (s.n === 0 || s.m === 0) { alert('Erst Kandidaten anlegen.'); return; }
+    if (s.maxDouble > 1) { alert('Die Gruppen dürfen sich höchstens um eine Person unterscheiden.'); return; }
+
+    editingNight = existing || null;
+    $('nightTitle').textContent = existing ? 'Matching Night bearbeiten' : 'Neue Matching Night';
+    $('nightError').textContent = '';
+    $('nightLights').max = String(s.B);
+    $('nightLights').placeholder = '0 bis ' + s.B;
+    $('nightLights').oninput = function () { $('nightError').textContent = ''; };
+    $('nightLights').value = existing ? String(existing.lights) : '';
+
+    var host = $('seatRows');
+    host.textContent = '';
+    var preset = {};
+    if (existing) {
+      existing.pairs.forEach(function (p) {
+        var b = s.bigIsWomen ? p[1] : p[0];
+        var sm = s.bigIsWomen ? p[0] : p[1];
+        preset[b] = sm;
+      });
+    }
+
+    s.bigNames.forEach(function (name, bi) {
+      var row = document.createElement('div');
+      row.className = 'seat-row';
+      var lbl = document.createElement('div');
+      lbl.className = 'name';
+      lbl.textContent = name;
+      lbl.title = name;
+      var sel = document.createElement('select');
+      sel.dataset.big = String(bi);
+      var opt0 = document.createElement('option');
+      opt0.value = '';
+      opt0.textContent = s.smallLabel + ' wählen';
+      sel.appendChild(opt0);
+      s.smallNames.forEach(function (sn, si) {
+        var o = document.createElement('option');
+        o.value = String(si);
+        o.textContent = sn;
+        sel.appendChild(o);
+      });
+      if (preset[bi] !== undefined) sel.value = String(preset[bi]);
+      sel.onchange = refreshSeats;
+      row.appendChild(lbl);
+      row.appendChild(sel);
+      host.appendChild(row);
+    });
+
+    refreshSeats();
+    $('dlgNight').showModal();
+  }
+
+  function seatSelects() {
+    return Array.prototype.slice.call($('seatRows').querySelectorAll('select'));
+  }
+
+  function refreshSeats() {
+    $('nightError').textContent = '';
+    var s = shape();
+    var sels = seatSelects();
+    var counts = {};
+    sels.forEach(function (sel) { if (sel.value !== '') counts[sel.value] = (counts[sel.value] || 0) + 1; });
+    var doublesUsed = Object.keys(counts).filter(function (k) { return counts[k] >= 2; }).length;
+
+    sels.forEach(function (sel) {
+      Array.prototype.slice.call(sel.options).forEach(function (opt) {
+        if (opt.value === '' || opt.value === sel.value) { opt.disabled = false; return; }
+        var c = counts[opt.value] || 0;
+        opt.disabled = c >= 1 + s.maxDouble || (c === 1 && doublesUsed >= s.maxDouble);
+      });
+    });
+
+    var open = [];
+    s.bigNames.forEach(function (name, bi) { if (sels[bi] && sels[bi].value === '') open.push(name); });
+    var doubled = Object.keys(counts).filter(function (k) { return counts[k] >= 2; })
+      .map(function (k) { return s.smallNames[k | 0]; });
+
+    var parts = [];
+    if (open.length) parts.push('Noch offen: ' + open.join(', '));
+    if (doubled.length) parts.push('Doppelt gesetzt: ' + doubled.join(', '));
+    if (!open.length && !doubled.length && s.maxDouble === 1) parts.push('Es fehlt noch der ' + s.smallLabel + ', der doppelt sitzt.');
+    $('nightHint').textContent = parts.join(' · ');
+  }
+
+  function readNight() {
+    var s = shape();
+    var sels = seatSelects();
+    var pairs = [];
+    var counts = new Array(s.S).fill(0);
+
+    for (var bi = 0; bi < s.B; bi++) {
+      var v = sels[bi].value;
+      if (v === '') return { error: 'Für ' + s.bigNames[bi] + ' fehlt noch die Zuordnung.' };
+      var si = v | 0;
+      counts[si]++;
+      pairs.push(s.bigIsWomen ? [si, bi] : [bi, si]);
+    }
+
+    var doubles = 0, missing = [];
+    for (var i = 0; i < s.S; i++) {
+      if (counts[i] === 0) missing.push(s.smallNames[i]);
+      if (counts[i] > 1 + s.maxDouble) return { error: s.smallNames[i] + ' sitzt zu oft.' };
+      if (counts[i] === 2) doubles++;
+    }
+    if (missing.length) return { error: 'Ohne Platz: ' + missing.join(', ') + '.' };
+    if (doubles !== s.maxDouble) {
+      return { error: s.maxDouble === 1
+        ? 'Genau ein ' + s.smallLabel + ' muss doppelt sitzen.'
+        : 'Bei gleich großen Gruppen darf niemand doppelt sitzen.' };
+    }
+
+    var raw = $('nightLights').value;
+    if (raw === '' || isNaN(parseInt(raw, 10))) return { error: 'Trag die Zahl der Lichter ein.' };
+    var lights = parseInt(raw, 10);
+    if (lights < 0 || lights > s.B) return { error: 'Die Lichter müssen zwischen 0 und ' + s.B + ' liegen.' };
+
+    return { pairs: pairs, lights: lights };
+  }
+
+  $('nightSave').onclick = function () {
+    var r = readNight();
+    if (r.error) { $('nightError').textContent = r.error; return; }
+    if (editingNight) {
+      editingNight.pairs = r.pairs;
+      editingNight.lights = r.lights;
+    } else {
+      state.nights.push({ id: 'n' + Date.now(), seq: nextSeq(), pairs: r.pairs, lights: r.lights });
+    }
+    editingNight = null;
+    save(); recompute();
+    $('dlgNight').close();
+  };
+
+  /* ---------- match box dialog ---------- */
+
+  var editingBox = null;
+  var boxChoice = null;
+
+  function openBox(existing) {
+    if (state.men.length === 0 || state.women.length === 0) { alert('Erst Kandidaten anlegen.'); return; }
+    editingBox = existing || null;
+    boxChoice = existing ? existing.match : null;
+    $('boxTitle').textContent = existing ? 'Match Box bearbeiten' : 'Neue Match Box';
+    $('boxError').textContent = '';
+
+    fillSelect($('boxMan'), state.men, existing ? existing.man : 0);
+    fillSelect($('boxWoman'), state.women, existing ? existing.woman : 0);
+    paintChoice();
+    $('dlgBox').showModal();
+  }
+
+  function fillSelect(sel, names, value) {
+    sel.textContent = '';
+    names.forEach(function (name, i) {
+      var o = document.createElement('option');
+      o.value = String(i);
+      o.textContent = name;
+      sel.appendChild(o);
+    });
+    sel.value = String(value);
+  }
+
+  function paintChoice() {
+    $('boxYes').setAttribute('aria-pressed', boxChoice === true ? 'true' : 'false');
+    $('boxNo').setAttribute('aria-pressed', boxChoice === false ? 'true' : 'false');
+  }
+
+  $('boxYes').onclick = function () { boxChoice = true; $('boxError').textContent = ''; paintChoice(); };
+  $('boxNo').onclick = function () { boxChoice = false; $('boxError').textContent = ''; paintChoice(); };
+
+  $('boxSave').onclick = function () {
+    if (boxChoice === null) { $('boxError').textContent = 'Match oder No Match auswählen.'; return; }
+    var man = $('boxMan').value | 0;
+    var woman = $('boxWoman').value | 0;
+    if (editingBox) {
+      editingBox.man = man; editingBox.woman = woman; editingBox.match = boxChoice;
+    } else {
+      state.boxes.push({ id: 'b' + Date.now(), seq: nextSeq(), man: man, woman: woman, match: boxChoice });
+    }
+    editingBox = null;
+    save(); recompute();
+    $('dlgBox').close();
+  };
+
+  /* ---------- setup dialog ---------- */
+
+  function openSetup() {
+    renderNames();
+    $('dlgSetup').showModal();
+  }
+
+  function renderNames() {
+    paintList($('menList'), state.men, 'men');
+    paintList($('womenList'), state.women, 'women');
+    var n = state.men.length, m = state.women.length;
+    var hint = $('setupHint');
+    if (n === 0 || m === 0) hint.textContent = 'Trag beide Seiten ein.';
+    else if (Math.abs(n - m) > 1) hint.textContent = 'Die Gruppen dürfen sich höchstens um eine Person unterscheiden. Aktuell ' + n + ' zu ' + m + '.';
+    else if (n === m) hint.textContent = 'Gleich gross, also kein Doppelmatch: jeder hat genau einen.';
+    else hint.textContent = 'Eine Seite hat eine Person mehr, also gibt es genau einen Doppelmatch.';
+  }
+
+  function paintList(ul, arr, which) {
+    ul.textContent = '';
+    arr.forEach(function (name, i) {
+      var li = document.createElement('li');
+      var span = document.createElement('span');
+      span.textContent = name;
+      var del = document.createElement('button');
+      del.className = 'remove';
+      del.textContent = '\u00d7';
+      del.title = name + ' entfernen';
+      del.setAttribute('aria-label', name + ' entfernen');
+      del.onclick = function () { removeCandidate(which, i); };
+      li.appendChild(span);
+      li.appendChild(del);
+      ul.appendChild(li);
+    });
+  }
+
+  function removeCandidate(which, index) {
+    var affected = which === 'men'
+      ? state.nights.filter(function (nt) { return nt.pairs.some(function (p) { return p[0] === index; }); }).length
+        + state.boxes.filter(function (b) { return b.man === index; }).length
+      : state.nights.filter(function (nt) { return nt.pairs.some(function (p) { return p[1] === index; }); }).length
+        + state.boxes.filter(function (b) { return b.woman === index; }).length;
+
+    var name = state[which][index];
+    if (affected > 0 && !confirm(name + ' entfernen? Dabei verschwinden ' + affected + ' Einträge aus dem Verlauf.')) return;
+
+    state[which].splice(index, 1);
+    var key = which === 'men' ? 0 : 1;
+    state.nights = state.nights.filter(function (nt) {
+      return !nt.pairs.some(function (p) { return p[key] === index; });
+    });
+    state.nights.forEach(function (nt) {
+      nt.pairs.forEach(function (p) { if (p[key] > index) p[key]--; });
+    });
+    state.boxes = state.boxes.filter(function (b) {
+      return (which === 'men' ? b.man : b.woman) !== index;
+    });
+    state.boxes.forEach(function (b) {
+      if (which === 'men' && b.man > index) b.man--;
+      if (which === 'women' && b.woman > index) b.woman--;
+    });
+
+    save(); renderNames(); recompute();
+  }
+
+  function addCandidate(which, input) {
+    var name = input.value.trim();
+    if (!name) return;
+    state[which].push(name);
+    input.value = '';
+    input.focus();
+    save(); renderNames(); recompute();
+  }
+
+  $('menAdd').onclick = function () { addCandidate('men', $('menInput')); };
+  $('womenAdd').onclick = function () { addCandidate('women', $('womenInput')); };
+  $('menInput').onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); addCandidate('men', $('menInput')); } };
+  $('womenInput').onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); addCandidate('women', $('womenInput')); } };
+
+  /* ---------- data dialog ---------- */
+
+  $('btnExport').onclick = function () {
+    var blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'ayto-tracker.json';
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  };
+
+  $('btnImport').onclick = function () { $('dataError').textContent = ''; $('fileInput').click(); };
+
+  $('fileInput').onchange = function () {
+    var file = this.files && this.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var data = normalise(JSON.parse(String(reader.result)));
+        if (data.men.length === 0 && data.women.length === 0) throw new Error('leer');
+        state = data;
+        save(); recompute(); renderNames();
+        $('dlgData').close();
+      } catch (e) {
+        $('dataError').textContent = 'Die Datei ließ sich nicht lesen.';
+      }
+    };
+    reader.readAsText(file);
+    this.value = '';
+  };
+
+  $('btnReset').onclick = function () {
+    if (!confirm('Wirklich alles löschen? Kandidaten, Nights und Boxen sind dann weg.')) return;
+    state = clone(EMPTY);
+    save(); recompute(); renderNames();
+    $('dlgData').close();
+  };
+
+  /* ---------- wiring ---------- */
+
+  $('btnSetup').onclick = openSetup;
+  $('btnData').onclick = function () { $('dataError').textContent = ''; $('dlgData').showModal(); };
+  $('btnNight').onclick = function () { openNight(null); };
+  $('btnBox').onclick = function () { openBox(null); };
+
+  Array.prototype.slice.call(document.querySelectorAll('[data-close]')).forEach(function (b) {
+    b.onclick = function () { b.closest('dialog').close(); };
+  });
+
+  recompute();
+  if (state.men.length === 0 && state.women.length === 0) openSetup();
+})();
+</script>
+
+</body>
+</html>
