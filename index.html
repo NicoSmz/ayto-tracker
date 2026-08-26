@@ -117,6 +117,14 @@
   .cell { display: flex; align-items: center; justify-content: center; height: 40px; margin: 0 3px; border-radius: 7px; font-variant-numeric: tabular-nums; }
   .cell.zero { color: var(--faint); }
   .cell.sure { background: var(--accent-deep); color: #f6efe7; font-weight: 600; }
+  .cell.sure-alone { background: #6b5b4a; color: #f6efe7; font-weight: 600; }
+  /* Die interessanteste Spalte bleibt am rechten Rand stehen, sonst versteckt
+     sie sich auf dem Handy hinter zehn Maennerspalten. */
+  table.matrix th.alone-col, table.matrix td.alone-col {
+    position: sticky; right: 0; z-index: 2;
+    background: var(--surface); border-left: 1px solid var(--line);
+  }
+  table.matrix thead th.alone-col { color: var(--muted); z-index: 3; }
 
   .status { font-size: 13px; color: var(--muted); margin-top: 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
@@ -307,6 +315,13 @@
         <ul class="name-list" id="womenList"></ul>
       </div>
     </div>
+    <div class="field" id="formatField" hidden style="margin-top:14px">
+      <span class="label">Format der Staffel</span>
+      <div class="choice">
+        <button type="button" id="fmtNone" aria-pressed="false">Eine geht leer aus</button>
+        <button type="button" id="fmtDouble" aria-pressed="false">Ein Doppelmatch</button>
+      </div>
+    </div>
     <div class="hint" id="setupHint"></div>
   </div>
   <div class="dlg-foot">
@@ -339,6 +354,15 @@
 
 <script id="solver-src" type="text/plain">
 // solver:start
+// Ein Loesungsvorschlag ordnet jeder Person der groesseren Gruppe eine Person der
+// kleineren zu. Bei ungleicher Gruppengroesse bleibt genau ein Platz uebrig, und
+// es gibt zwei Formate dafuer:
+//   mode 'none'   eine Person der groesseren Gruppe hat gar kein Match
+//   mode 'double' eine Person der kleineren Gruppe hat zwei Matches
+// Beide verhalten sich rechnerisch gleich: jeder Platz nimmt entweder eine noch
+// freie Person der kleineren Gruppe oder verbraucht den einen Sonderfall.
+var NONE = -1;
+
 function solve(input) {
   var n = input.men | 0, m = input.women | 0;
   var nights = input.nights || [];
@@ -347,39 +371,44 @@ function solve(input) {
   if (n < 1 || m < 1) return { ok: false, reason: 'empty' };
   if (Math.abs(n - m) > 1) return { ok: false, reason: 'sizes' };
 
-  // The larger group is assigned onto the smaller one. When the groups differ by
-  // one, exactly one member of the smaller group is picked twice: the Doppelmatch.
   var bigIsWomen = m >= n;
   var B = bigIsWomen ? m : n;
   var S = bigIsWomen ? n : m;
-  var maxDouble = B - S; // 0 or 1
+  var extra = B - S;                       // 0 oder 1
+  var mode = input.mode === 'double' ? 'double' : 'none';
+  if (extra === 0) mode = 'none';          // ohne Ueberhang identisch
 
   function bigOf(man, woman) { return bigIsWomen ? woman : man; }
   function smallOf(man, woman) { return bigIsWomen ? man : woman; }
 
+  // Sitzordnungen. seat[b] === NONE heisst: sitzt in dieser Night allein.
   var K = nights.length;
   var seats = [];
   var lights = new Int32Array(K);
+  var seatedCount = new Int32Array(K);
   for (var k = 0; k < K; k++) {
     var seat = new Int32Array(B);
-    for (var i = 0; i < B; i++) seat[i] = -1;
+    for (var i = 0; i < B; i++) seat[i] = NONE;
     var pairs = nights[k].pairs || [];
+    var seen = 0;
     for (var q = 0; q < pairs.length; q++) {
       var man = pairs[q][0], woman = pairs[q][1];
       if (man < 0 || man >= n || woman < 0 || woman >= m) return { ok: false, reason: 'badnight' };
       var b = bigOf(man, woman), sm = smallOf(man, woman);
-      if (seat[b] !== -1) return { ok: false, reason: 'badnight' };
+      if (seat[b] !== NONE) return { ok: false, reason: 'badnight' };
       seat[b] = sm;
+      seen++;
     }
-    for (var i2 = 0; i2 < B; i2++) if (seat[i2] === -1) return { ok: false, reason: 'badnight' };
     var lt = nights[k].lights | 0;
-    if (lt < 0 || lt > B) return { ok: false, reason: 'badnight' };
+    if (lt < 0 || lt > seen) return { ok: false, reason: 'badnight' };
     seats.push(seat);
     lights[k] = lt;
+    seatedCount[k] = seen;
   }
 
   var forced = new Int32Array(B);
-  for (var f = 0; f < B; f++) forced[f] = -1;
+  for (var f = 0; f < B; f++) forced[f] = NONE - 1;   // -2 heisst "nicht festgelegt"
+  var UNSET = NONE - 1;
   var banned = new Uint8Array(B * S);
   var impossible = false;
   for (var x = 0; x < boxes.length; x++) {
@@ -387,71 +416,111 @@ function solve(input) {
     if (bx.man < 0 || bx.man >= n || bx.woman < 0 || bx.woman >= m) return { ok: false, reason: 'badbox' };
     var bb = bigOf(bx.man, bx.woman), ss = smallOf(bx.man, bx.woman);
     if (bx.match) {
-      if (forced[bb] !== -1 && forced[bb] !== ss) impossible = true;
+      if (forced[bb] !== UNSET && forced[bb] !== ss) impossible = true;
       forced[bb] = ss;
     } else {
       banned[bb * S + ss] = 1;
     }
   }
-  for (var c = 0; c < B; c++) if (forced[c] !== -1 && banned[c * S + forced[c]]) impossible = true;
+  for (var c = 0; c < B; c++) if (forced[c] !== UNSET && banned[c * S + forced[c]]) impossible = true;
+
   var forcedUse = new Int32Array(S);
-  for (var c2 = 0; c2 < B; c2++) if (forced[c2] !== -1) forcedUse[forced[c2]]++;
-  var forcedDoubles = 0;
+  for (var c2 = 0; c2 < B; c2++) if (forced[c2] !== UNSET) forcedUse[forced[c2]]++;
+  var forcedExtra = 0;
+  var allowedUse = mode === 'double' ? 1 + extra : 1;
   for (var c3 = 0; c3 < S; c3++) {
-    if (forcedUse[c3] > 1 + maxDouble) impossible = true;
-    if (forcedUse[c3] === 2) forcedDoubles++;
+    if (forcedUse[c3] > allowedUse) impossible = true;
+    if (forcedUse[c3] === 2) forcedExtra++;
   }
-  if (forcedDoubles > maxDouble) impossible = true;
-  if (impossible) return { ok: true, mode: 'exact', total: 0, counts: null, B: B, S: S, bigIsWomen: bigIsWomen };
+  if (forcedExtra > extra) impossible = true;
+  if (impossible) {
+    return { ok: true, mode: 'exact', format: mode, total: 0, counts: null, alone: null, B: B, S: S, bigIsWomen: bigIsWomen };
+  }
 
-  // Confirmed members go first: they do not branch at all and shrink everything after them.
+  // Bestaetigte Paare zuerst: sie verzweigen nicht und verkleinern alles danach.
   var order = [];
-  for (var o1 = 0; o1 < B; o1++) if (forced[o1] !== -1) order.push(o1);
-  for (var o2 = 0; o2 < B; o2++) if (forced[o2] === -1) order.push(o2);
+  for (var o1 = 0; o1 < B; o1++) if (forced[o1] !== UNSET) order.push(o1);
+  for (var o2 = 0; o2 < B; o2++) if (forced[o2] === UNSET) order.push(o2);
 
-  // Count every valid constellation. Returns null when the node budget runs out.
+  // Wie viele der noch offenen Plaetze sitzen in Night k ueberhaupt bei jemandem?
+  // Nur die koennen noch ein Licht beisteuern.
+  var seatedAfter = [];
+  for (var k2 = 0; k2 < K; k2++) {
+    var arr = new Int32Array(B + 1);
+    for (var i2 = B - 1; i2 >= 0; i2--) {
+      arr[i2] = arr[i2 + 1] + (seats[k2][order[i2]] !== NONE ? 1 : 0);
+    }
+    seatedAfter.push(arr);
+  }
+
   function runExact(budget) {
     var counts = new Float64Array(B * S);
+    var alone = new Float64Array(B);
     var assign = new Int32Array(B);
     var used = new Int32Array(S);
     var hits = new Int32Array(K);
-    var unused = S, doubles = 0, total = 0, nodes = 0, overflow = false;
+    var unused = S, extraUsed = 0, total = 0, nodes = 0, overflow = false;
+
+    function place(i, b, s, rem) {
+      nodes++;
+      var isExtra, nu;
+      if (s === NONE) {
+        if (mode !== 'none') return false;
+        isExtra = true; nu = unused;
+      } else {
+        if (banned[b * S + s]) return false;
+        var u = used[s];
+        if (u === 0) { isExtra = false; nu = unused - 1; }
+        else if (u === 1 && mode === 'double') { isExtra = true; nu = unused; }
+        else return false;
+      }
+      if (isExtra && extraUsed >= extra) return false;
+      // Jeder verbleibende Platz nimmt entweder eine freie Person oder den Sonderfall.
+      if (rem !== nu + (extra - extraUsed - (isExtra ? 1 : 0))) return false;
+
+      for (var k3 = 0; k3 < K; k3++) {
+        var h = hits[k3] + (s !== NONE && seats[k3][b] === s ? 1 : 0);
+        if (h > lights[k3] || h + seatedAfter[k3][i + 1] < lights[k3]) return false;
+      }
+      return true;
+    }
 
     function dfs(i) {
       if (nodes > budget) { overflow = true; return; }
       if (i === B) {
         total++;
-        for (var b0 = 0; b0 < B; b0++) counts[b0 * S + assign[b0]]++;
+        for (var b0 = 0; b0 < B; b0++) {
+          if (assign[b0] === NONE) alone[b0]++;
+          else counts[b0 * S + assign[b0]]++;
+        }
         nodes += B;
         return;
       }
       var b = order[i];
       var rem = B - i - 1;
-      var lo = forced[b] === -1 ? 0 : forced[b];
-      var hi = forced[b] === -1 ? S - 1 : forced[b];
-      for (var s = lo; s <= hi; s++) {
-        nodes++;
-        if (banned[b * S + s]) continue;
-        var u = used[s];
-        if (u > maxDouble) continue;
-        var nd = doubles + (u === 1 ? 1 : 0);
-        if (nd > maxDouble) continue;
-        var nu = unused - (u === 0 ? 1 : 0);
-        // Every remaining seat must either take an untouched member or create the
-        // one allowed double. Anything else can never complete.
-        if (rem !== nu + (maxDouble - nd)) continue;
-        var fits = true;
-        for (var k2 = 0; k2 < K; k2++) {
-          var h = hits[k2] + (seats[k2][b] === s ? 1 : 0);
-          if (h > lights[k2] || h + rem < lights[k2]) { fits = false; break; }
-        }
-        if (!fits) continue;
+      var options;
+      if (forced[b] !== UNSET) options = [forced[b]];
+      else {
+        options = [];
+        for (var s0 = 0; s0 < S; s0++) options.push(s0);
+        if (mode === 'none') options.push(NONE);
+      }
 
-        assign[b] = s; used[s] = u + 1; doubles = nd; unused = nu;
-        for (var k3 = 0; k3 < K; k3++) if (seats[k3][b] === s) hits[k3]++;
+      for (var oi = 0; oi < options.length; oi++) {
+        var s = options[oi];
+        if (!place(i, b, s, rem)) continue;
+
+        var wasExtra = (s === NONE) || (used[s] === 1);
+        assign[b] = s;
+        if (s !== NONE) used[s]++;
+        if (wasExtra) extraUsed++; else unused--;
+        for (var k4 = 0; k4 < K; k4++) if (s !== NONE && seats[k4][b] === s) hits[k4]++;
+
         dfs(i + 1);
-        for (var k4 = 0; k4 < K; k4++) if (seats[k4][b] === s) hits[k4]--;
-        used[s] = u; doubles = doubles - (u === 1 ? 1 : 0); unused = unused + (u === 0 ? 1 : 0);
+
+        for (var k5 = 0; k5 < K; k5++) if (s !== NONE && seats[k5][b] === s) hits[k5]--;
+        if (wasExtra) extraUsed--; else unused++;
+        if (s !== NONE) used[s]--;
         if (overflow) return;
       }
     }
@@ -459,21 +528,22 @@ function solve(input) {
     dfs(0);
     if (overflow) return null;
     return {
-      ok: true, mode: 'exact', total: total,
+      ok: true, mode: 'exact', format: mode, total: total,
       counts: total > 0 ? Array.prototype.slice.call(counts) : null,
+      alone: total > 0 ? Array.prototype.slice.call(alone) : null,
       B: B, S: S, bigIsWomen: bigIsWomen
     };
   }
 
-  // Draw constellations uniformly and keep the ones that survive every constraint.
   function runSample(attempts, target) {
     var scounts = new Float64Array(B * S);
+    var salone = new Float64Array(B);
     var pool = new Int32Array(B);
     var valid = 0, tries = 0;
 
     for (tries = 0; tries < attempts && valid < target; tries++) {
       for (var q2 = 0; q2 < S; q2++) pool[q2] = q2;
-      if (maxDouble === 1) pool[S] = (Math.random() * S) | 0;
+      if (extra === 1) pool[S] = mode === 'double' ? ((Math.random() * S) | 0) : NONE;
       for (var r = B - 1; r > 0; r--) {
         var j = (Math.random() * (r + 1)) | 0;
         var tmp = pool[r]; pool[r] = pool[j]; pool[j] = tmp;
@@ -481,40 +551,39 @@ function solve(input) {
       var good = true;
       for (var b2 = 0; b2 < B; b2++) {
         var v = pool[b2];
-        if (forced[b2] !== -1 && forced[b2] !== v) { good = false; break; }
-        if (banned[b2 * S + v]) { good = false; break; }
+        if (forced[b2] !== UNSET && forced[b2] !== v) { good = false; break; }
+        if (v !== NONE && banned[b2 * S + v]) { good = false; break; }
       }
       if (!good) continue;
-      for (var k5 = 0; k5 < K; k5++) {
+      for (var k6 = 0; k6 < K; k6++) {
         var hit = 0;
-        var sk = seats[k5];
-        for (var b3 = 0; b3 < B; b3++) if (sk[b3] === pool[b3]) hit++;
-        if (hit !== lights[k5]) { good = false; break; }
+        var sk = seats[k6];
+        for (var b3 = 0; b3 < B; b3++) if (pool[b3] !== NONE && sk[b3] === pool[b3]) hit++;
+        if (hit !== lights[k6]) { good = false; break; }
       }
       if (!good) continue;
       valid++;
-      for (var b4 = 0; b4 < B; b4++) scounts[b4 * S + pool[b4]]++;
+      for (var b4 = 0; b4 < B; b4++) {
+        if (pool[b4] === NONE) salone[b4]++;
+        else scounts[b4 * S + pool[b4]]++;
+      }
     }
 
     return {
-      ok: true, mode: 'sample', total: valid, attempts: tries,
+      ok: true, mode: 'sample', format: mode, total: valid, attempts: tries,
       counts: valid > 0 ? Array.prototype.slice.call(scounts) : null,
+      alone: valid > 0 ? Array.prototype.slice.call(salone) : null,
       B: B, S: S, bigIsWomen: bigIsWomen
     };
   }
 
-  // Exact and sampling fail in opposite situations, so try both before giving up.
-  // Cheap exact pass first: small casts and late seasons finish here instantly.
+  // Zaehlen und Stichprobe versagen an entgegengesetzten Stellen, deshalb beide.
   var quick = runExact(input.budget === undefined ? 60000000 : input.budget);
   if (quick) return quick;
 
-  // Too many constellations to count. Early in a season few constraints bite, so
-  // sampling lands plenty of hits and the estimate is tight.
   var drawn = runSample(input.attempts || 1500000, input.target || 200000);
   if (drawn.total >= (input.enough === undefined ? 20000 : input.enough)) return drawn;
 
-  // Few hits means the constraints are tight, which is exactly where counting
-  // works. This covers the middle of a season, where neither shortcut alone does.
   var deep = runExact(input.deepBudget === undefined ? 700000000 : input.deepBudget);
   if (deep) return deep;
 
@@ -539,7 +608,7 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typ
   'use strict';
 
   var KEY = 'ayto-tracker';
-  var EMPTY = { version: 1, seq: 0, men: [], women: [], nights: [], boxes: [] };
+  var EMPTY = { version: 1, seq: 0, mode: 'none', men: [], women: [], nights: [], boxes: [] };
   var state = load();
   var result = null;
   var busy = false;
@@ -566,6 +635,18 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typ
   function normalise(d) {
     var out = clone(EMPTY);
     if (!d || typeof d !== 'object') return out;
+    // Aeltere Staende kennen das Feld nicht. Wer damals Sitzordnungen eingetragen
+    // hat, bei denen jede Person der groesseren Gruppe sitzt, meinte den Doppelmatch.
+    if (d.mode === 'double' || d.mode === 'none') {
+      out.mode = d.mode;
+    } else {
+      var mn = Array.isArray(d.men) ? d.men.length : 0;
+      var wn = Array.isArray(d.women) ? d.women.length : 0;
+      var big = Math.max(mn, wn);
+      var voll = big > Math.min(mn, wn) && Array.isArray(d.nights) &&
+        d.nights.some(function (x) { return x && Array.isArray(x.pairs) && x.pairs.length === big; });
+      out.mode = voll ? 'double' : 'none';
+    }
     out.men = Array.isArray(d.men) ? d.men.filter(isName) : [];
     out.women = Array.isArray(d.women) ? d.women.filter(isName) : [];
     var n = out.men.length, m = out.women.length;
@@ -630,6 +711,7 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typ
       input: {
         men: state.men.length,
         women: state.women.length,
+        mode: state.mode,
         nights: state.nights.map(function (x) { return { pairs: x.pairs, lights: x.lights }; }),
         boxes: state.boxes.map(function (x) { return { man: x.man, woman: x.woman, match: x.match }; })
       }
@@ -644,7 +726,9 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typ
       n: n, m: m, bigIsWomen: bigIsWomen,
       B: bigIsWomen ? m : n,
       S: bigIsWomen ? n : m,
-      maxDouble: Math.abs(m - n),
+      extra: Math.abs(m - n),
+      mode: Math.abs(m - n) === 1 ? state.mode : 'none',
+      maxDouble: state.mode === 'double' ? Math.abs(m - n) : 0,
       bigNames: bigIsWomen ? state.women : state.men,
       smallNames: bigIsWomen ? state.men : state.women,
       bigLabel: bigIsWomen ? 'Frau' : 'Mann',
@@ -661,6 +745,17 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typ
     return result.counts[b * s.S + sm] / result.total;
   }
 
+  // Wahrscheinlichkeit, dass diese Person der groesseren Gruppe leer ausgeht.
+  function chanceAlone(bigIndex) {
+    if (!result || !result.ok || !result.alone || !result.total) return null;
+    return result.alone[bigIndex] / result.total;
+  }
+
+  function showsAloneColumn() {
+    var s = shape();
+    return s.extra === 1 && s.mode === 'none' && s.bigIsWomen;
+  }
+
   /* ---------- rendering ---------- */
 
   function render() {
@@ -675,7 +770,9 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typ
     var el = $('setupSummary');
     if (n === 0 && m === 0) { el.textContent = 'Noch keine Kandidaten'; return; }
     var txt = n + (n === 1 ? ' Mann, ' : ' Männer, ') + m + (m === 1 ? ' Frau' : ' Frauen');
-    if (Math.abs(n - m) === 1) txt += ' · ein Doppelmatch';
+    if (Math.abs(n - m) === 1) {
+      txt += state.mode === 'double' ? ' · ein Doppelmatch' : ' · eine Person ohne Match';
+    }
     el.textContent = txt;
   }
 
@@ -693,7 +790,10 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typ
       return;
     }
     if (result && !result.ok) {
-      host.appendChild(notice('Die Daten passen nicht zusammen (' + result.reason + '). Prüf den Verlauf.', true));
+      var warum = result.reason === 'badnight'
+        ? 'Eine Matching Night passt nicht zum eingestellten Format. Prüf im Verlauf, ob überall die richtige Zahl an Paaren steht.'
+        : 'Die Daten passen nicht zusammen (' + result.reason + '). Prüf den Verlauf.';
+      host.appendChild(notice(warum, true));
       return;
     }
     if (result && result.ok && result.total === 0) {
@@ -714,6 +814,12 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typ
       th.textContent = name;
       hr.appendChild(th);
     });
+    if (showsAloneColumn()) {
+      var thAlone = document.createElement('th');
+      thAlone.className = 'alone-col';
+      thAlone.textContent = 'kein Match';
+      hr.appendChild(thAlone);
+    }
     thead.appendChild(hr);
     table.appendChild(thead);
 
@@ -729,6 +835,12 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typ
         td.appendChild(cell(mi, wi));
         tr.appendChild(td);
       });
+      if (showsAloneColumn()) {
+        var tdAlone = document.createElement('td');
+        tdAlone.className = 'alone-col';
+        tdAlone.appendChild(aloneCell(wi));
+        tr.appendChild(tdAlone);
+      }
       tbody.appendChild(tr);
     });
     table.appendChild(tbody);
@@ -761,6 +873,28 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typ
     }
     div.title = state.women[woman] + ' + ' + state.men[man] + ': ' + (p * 100).toFixed(1) + ' Prozent';
     return div;
+  }
+
+  // Bewusst nicht grün: leer auszugehen ist kein Treffer.
+  function aloneCell(woman) {
+    var div = document.createElement('div');
+    div.className = 'cell';
+    var pa = chanceAlone(woman);
+    if (pa === null) { div.textContent = busy ? '' : '–'; div.classList.add('zero'); return div; }
+
+    var estimate = result.mode === 'sample';
+    if (!estimate && pa >= 0.9999) { div.classList.add('sure-alone'); div.textContent = '100'; }
+    else if (!estimate && pa <= 0.0001) { div.classList.add('zero'); div.textContent = '0'; }
+    else if (estimate && pa >= 0.995) { div.textContent = '>99'; div.style.background = tintAlone(1); }
+    else if (estimate && pa <= 0.005) { div.classList.add('zero'); div.textContent = '<1'; }
+    else { div.textContent = String(Math.round(pa * 100)); div.style.background = tintAlone(pa); }
+    div.title = state.women[woman] + ' geht leer aus: ' + (pa * 100).toFixed(1) + ' Prozent';
+    return div;
+  }
+
+  function tintAlone(p) {
+    var a = 0.08 + Math.min(p, 1) * 0.45;
+    return 'rgba(140, 118, 94, ' + a.toFixed(3) + ')';
   }
 
   function tint(p) {
@@ -842,9 +976,16 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typ
         entry.appendChild(top);
         var pairs = document.createElement('div');
         pairs.className = 'pairs';
-        pairs.textContent = item.data.pairs.map(function (p) {
+        var txt = item.data.pairs.map(function (p) {
           return state.women[p[1]] + ' + ' + state.men[p[0]];
         }).join(', ');
+        var solo = [];
+        var seatedW = {}, seatedM = {};
+        item.data.pairs.forEach(function (p) { seatedM[p[0]] = true; seatedW[p[1]] = true; });
+        state.women.forEach(function (nm, wi) { if (!seatedW[wi]) solo.push(nm); });
+        state.men.forEach(function (nm, mi) { if (!seatedM[mi]) solo.push(nm); });
+        if (solo.length) txt += ' · ' + solo.join(', ') + ' allein';
+        pairs.textContent = txt;
         entry.appendChild(pairs);
         entry.onclick = function () { openNight(item.data); };
       } else {
@@ -882,6 +1023,7 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typ
 
   /* ---------- matching night dialog ---------- */
 
+  var ALONE = 'x';
   var editingNight = null;
 
   function openNight(existing) {
@@ -892,8 +1034,9 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typ
     editingNight = existing || null;
     $('nightTitle').textContent = existing ? 'Matching Night bearbeiten' : 'Neue Matching Night';
     $('nightError').textContent = '';
-    $('nightLights').max = String(s.B);
-    $('nightLights').placeholder = '0 bis ' + s.B;
+    var maxLights = s.mode === 'none' ? s.S : s.B;
+    $('nightLights').max = String(maxLights);
+    $('nightLights').placeholder = '0 bis ' + maxLights;
     $('nightLights').oninput = function () { $('nightError').textContent = ''; };
     $('nightLights').value = existing ? String(existing.lights) : '';
 
@@ -927,7 +1070,14 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typ
         o.textContent = sn;
         sel.appendChild(o);
       });
+      if (s.mode === 'none' && s.extra === 1) {
+        var oa = document.createElement('option');
+        oa.value = ALONE;
+        oa.textContent = 'sitzt allein';
+        sel.appendChild(oa);
+      }
       if (preset[bi] !== undefined) sel.value = String(preset[bi]);
+      else if (existing && s.mode === 'none' && s.extra === 1) sel.value = ALONE;
       sel.onchange = refreshSeats;
       row.appendChild(lbl);
       row.appendChild(sel);
@@ -947,26 +1097,44 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typ
     var s = shape();
     var sels = seatSelects();
     var counts = {};
-    sels.forEach(function (sel) { if (sel.value !== '') counts[sel.value] = (counts[sel.value] || 0) + 1; });
+    var aloneCount = 0;
+    sels.forEach(function (sel) {
+      if (sel.value === '') return;
+      if (sel.value === ALONE) { aloneCount++; return; }
+      counts[sel.value] = (counts[sel.value] || 0) + 1;
+    });
     var doublesUsed = Object.keys(counts).filter(function (k) { return counts[k] >= 2; }).length;
 
     sels.forEach(function (sel) {
       Array.prototype.slice.call(sel.options).forEach(function (opt) {
         if (opt.value === '' || opt.value === sel.value) { opt.disabled = false; return; }
+        if (opt.value === ALONE) { opt.disabled = aloneCount >= s.extra; return; }
         var c = counts[opt.value] || 0;
         opt.disabled = c >= 1 + s.maxDouble || (c === 1 && doublesUsed >= s.maxDouble);
       });
     });
 
-    var open = [];
-    s.bigNames.forEach(function (name, bi) { if (sels[bi] && sels[bi].value === '') open.push(name); });
-    var doubled = Object.keys(counts).filter(function (k) { return counts[k] >= 2; })
+    var offen = [], alleine = [];
+    s.bigNames.forEach(function (name, bi) {
+      if (!sels[bi]) return;
+      if (sels[bi].value === '') offen.push(name);
+      else if (sels[bi].value === ALONE) alleine.push(name);
+    });
+    var doppelt = Object.keys(counts).filter(function (k) { return counts[k] >= 2; })
       .map(function (k) { return s.smallNames[k | 0]; });
+    var ohnePlatz = [];
+    s.smallNames.forEach(function (name, si) { if (!counts[String(si)]) ohnePlatz.push(name); });
 
     var parts = [];
-    if (open.length) parts.push('Noch offen: ' + open.join(', '));
-    if (doubled.length) parts.push('Doppelt gesetzt: ' + doubled.join(', '));
-    if (!open.length && !doubled.length && s.maxDouble === 1) parts.push('Es fehlt noch der ' + s.smallLabel + ', der doppelt sitzt.');
+    if (offen.length) parts.push('Noch offen: ' + offen.join(', '));
+    if (alleine.length) parts.push('Sitzt allein: ' + alleine.join(', '));
+    if (doppelt.length) parts.push('Doppelt gesetzt: ' + doppelt.join(', '));
+    if (!offen.length && ohnePlatz.length) parts.push('Ohne Platz: ' + ohnePlatz.join(', '));
+    if (!offen.length && !parts.length && s.extra === 1) {
+      parts.push(s.mode === 'none'
+        ? 'Es fehlt noch die Person, die allein sitzt.'
+        : 'Es fehlt noch der ' + s.smallLabel + ', der doppelt sitzt.');
+    }
     $('nightHint').textContent = parts.join(' · ');
   }
 
@@ -975,10 +1143,12 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typ
     var sels = seatSelects();
     var pairs = [];
     var counts = new Array(s.S).fill(0);
+    var alone = 0;
 
     for (var bi = 0; bi < s.B; bi++) {
       var v = sels[bi].value;
       if (v === '') return { error: 'Für ' + s.bigNames[bi] + ' fehlt noch die Zuordnung.' };
+      if (v === ALONE) { alone++; continue; }
       var si = v | 0;
       counts[si]++;
       pairs.push(s.bigIsWomen ? [si, bi] : [bi, si]);
@@ -991,16 +1161,23 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typ
       if (counts[i] === 2) doubles++;
     }
     if (missing.length) return { error: 'Ohne Platz: ' + missing.join(', ') + '.' };
-    if (doubles !== s.maxDouble) {
-      return { error: s.maxDouble === 1
-        ? 'Genau ein ' + s.smallLabel + ' muss doppelt sitzen.'
-        : 'Bei gleich großen Gruppen darf niemand doppelt sitzen.' };
+
+    if (s.mode === 'none') {
+      if (alone !== s.extra) {
+        return { error: s.extra === 1
+          ? 'Genau eine Person muss allein sitzen.'
+          : 'Bei gleich großen Gruppen sitzt niemand allein.' };
+      }
+    } else if (doubles !== s.maxDouble) {
+      return { error: 'Genau ein ' + s.smallLabel + ' muss doppelt sitzen.' };
     }
 
     var raw = $('nightLights').value;
     if (raw === '' || isNaN(parseInt(raw, 10))) return { error: 'Trag die Zahl der Lichter ein.' };
     var lights = parseInt(raw, 10);
-    if (lights < 0 || lights > s.B) return { error: 'Die Lichter müssen zwischen 0 und ' + s.B + ' liegen.' };
+    if (lights < 0 || lights > pairs.length) {
+      return { error: 'Die Lichter müssen zwischen 0 und ' + pairs.length + ' liegen.' };
+    }
 
     return { pairs: pairs, lights: lights };
   }
@@ -1083,11 +1260,18 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typ
     var n = state.men.length, m = state.women.length;
     $('menCount').textContent = n ? String(n) : '';
     $('womenCount').textContent = m ? String(m) : '';
+
+    var diff = Math.abs(n - m);
+    $('formatField').hidden = !(n > 0 && m > 0 && diff === 1);
+    $('fmtNone').setAttribute('aria-pressed', state.mode === 'none' ? 'true' : 'false');
+    $('fmtDouble').setAttribute('aria-pressed', state.mode === 'double' ? 'true' : 'false');
+
     var hint = $('setupHint');
     if (n === 0 || m === 0) hint.textContent = 'Trag beide Seiten ein.';
-    else if (Math.abs(n - m) > 1) hint.textContent = 'Die Gruppen dürfen sich höchstens um eine Person unterscheiden. Aktuell ' + n + ' zu ' + m + '.';
-    else if (n === m) hint.textContent = 'Gleich groß, kein Doppelmatch.';
-    else hint.textContent = 'Eine Person mehr auf einer Seite, also genau ein Doppelmatch.';
+    else if (diff > 1) hint.textContent = 'Die Gruppen dürfen sich höchstens um eine Person unterscheiden. Aktuell ' + n + ' zu ' + m + '.';
+    else if (diff === 0) hint.textContent = 'Gleich groß, jeder hat genau ein Match.';
+    else if (state.mode === 'none') hint.textContent = 'Eine Person zu viel. Diese eine hat gar kein Perfect Match und sitzt in jeder Matching Night allein.';
+    else hint.textContent = 'Eine Person zu viel. Dafür hat jemand aus der kleineren Gruppe zwei Perfect Matches und sitzt in jeder Matching Night doppelt.';
   }
 
   function paintList(ul, arr, which) {
@@ -1145,6 +1329,17 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typ
     input.focus();
     save(); renderNames(); recompute();
   }
+
+  function setMode(mode) {
+    if (state.mode === mode) return;
+    if (state.nights.length > 0 &&
+        !confirm('Format wechseln? Die ' + state.nights.length + ' eingetragenen Matching Nights passen dann womöglich nicht mehr und müssen korrigiert werden.')) return;
+    state.mode = mode;
+    save(); renderNames(); recompute();
+  }
+
+  $('fmtNone').onclick = function () { setMode('none'); };
+  $('fmtDouble').onclick = function () { setMode('double'); };
 
   $('menAdd').onclick = function () { addCandidate('men', $('menInput')); };
   $('womenAdd').onclick = function () { addCandidate('women', $('womenInput')); };
