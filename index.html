@@ -149,13 +149,14 @@
   /* Dialog */
   dialog {
     border: 1px solid var(--line); background: var(--surface); color: var(--text);
-    border-radius: 16px; padding: 0; width: min(560px, calc(100vw - 24px)); max-height: 88vh;
+    border-radius: 16px; padding: 0; width: min(560px, calc(100vw - 24px));
+    max-height: 88vh; max-height: 88dvh;
   }
   dialog[open] { display: flex; flex-direction: column; }
   dialog::backdrop { background: rgba(8, 6, 4, .72); }
   .dlg-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; border-bottom: 1px solid var(--line-soft); position: sticky; top: 0; background: var(--surface); border-radius: 16px 16px 0 0; }
   .dlg-head h2 { font-size: 17px; font-weight: 600; margin: 0; }
-  .dlg-body { padding: 16px 18px; overflow-y: auto; flex: 1; min-height: 0; }
+  .dlg-body { padding: 14px 16px; overflow-y: auto; flex: 1; min-height: 0; }
   .dlg-foot { padding: 14px 18px; border-top: 1px solid var(--line-soft); display: flex; gap: 10px; background: var(--surface); border-radius: 0 0 16px 16px; flex-shrink: 0; }
   .dlg-foot button { flex: 1; }
   .dlg-foot.stacked { flex-direction: column; align-items: stretch; gap: 10px; }
@@ -165,7 +166,7 @@
   .lights-field input { text-align: center; }
   .dlg-foot .error { margin-top: 0; }
   .dlg-foot .error:empty { display: none; }
-  button.remove { background: transparent; border-color: transparent; color: var(--muted); font-size: 20px; line-height: 1; padding: 3px 12px; }
+  button.remove { background: transparent; border-color: transparent; color: var(--muted); font-size: 17px; line-height: 1; padding: 3px 8px; }
   button.remove:hover { background: var(--surface-2); color: var(--danger); }
 
   .seat-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
@@ -173,20 +174,24 @@
   .field { margin-bottom: 14px; }
   .field > .label { display: block; margin-bottom: 6px; }
   .field-row { display: flex; gap: 10px; align-items: center; }
-  .hint { font-size: 13px; color: var(--muted); margin-top: 10px; line-height: 1.6; }
+  .hint { font-size: 13px; color: var(--muted); margin-top: 8px; line-height: 1.55; }
   .error { font-size: 14px; color: var(--danger); margin-top: 10px; }
 
-  .name-list { list-style: none; margin: 0 0 10px; padding: 0; }
-  .name-list li { display: flex; align-items: center; gap: 8px; padding: 5px 0; }
-  .name-list li span { flex: 1; font-size: 15px; }
-  .col-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .name-list { list-style: none; margin: 0; padding: 0; }
+  .name-list li { display: flex; align-items: center; gap: 4px; padding: 1px 0; }
+  .name-list li span { flex: 1; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .col-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .col-head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; margin-bottom: 7px; }
+  .count { font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; }
+  .add-row { gap: 6px; margin-bottom: 8px; }
+  .add-row input { padding: 8px 9px; font-size: 14px; min-width: 0; }
+  button.add { flex-shrink: 0; padding: 8px 11px; font-size: 17px; line-height: 1; }
 
   .choice { display: flex; gap: 8px; }
   .choice button { flex: 1; }
   .choice button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-deep); font-weight: 600; }
 
   @media (max-width: 520px) {
-    .col-2 { grid-template-columns: 1fr; gap: 14px; }
     .seat-row .name { width: 74px; }
     header h1 { font-size: 18px; }
   }
@@ -286,20 +291,20 @@
   <div class="dlg-body">
     <div class="col-2">
       <div>
-        <span class="label">Männer</span>
-        <ul class="name-list" id="menList"></ul>
-        <div class="field-row">
+        <div class="col-head"><span class="label">Männer</span><span class="count" id="menCount"></span></div>
+        <div class="field-row add-row">
           <input id="menInput" placeholder="Name" autocomplete="off">
-          <button class="small" id="menAdd">Hinzu</button>
+          <button class="add" id="menAdd" aria-label="Mann hinzufügen">+</button>
         </div>
+        <ul class="name-list" id="menList"></ul>
       </div>
       <div>
-        <span class="label">Frauen</span>
-        <ul class="name-list" id="womenList"></ul>
-        <div class="field-row">
+        <div class="col-head"><span class="label">Frauen</span><span class="count" id="womenCount"></span></div>
+        <div class="field-row add-row">
           <input id="womenInput" placeholder="Name" autocomplete="off">
-          <button class="small" id="womenAdd">Hinzu</button>
+          <button class="add" id="womenAdd" aria-label="Frau hinzufügen">+</button>
         </div>
+        <ul class="name-list" id="womenList"></ul>
       </div>
     </div>
     <div class="hint" id="setupHint"></div>
@@ -660,7 +665,7 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typ
     var n = state.men.length, m = state.women.length;
     var el = $('setupSummary');
     if (n === 0 && m === 0) { el.textContent = 'Noch keine Kandidaten'; return; }
-    var txt = n + ' Männer, ' + m + ' Frauen';
+    var txt = n + (n === 1 ? ' Mann, ' : ' Männer, ') + m + (m === 1 ? ' Frau' : ' Frauen');
     if (Math.abs(n - m) === 1) txt += ' · ein Doppelmatch';
     el.textContent = txt;
   }
@@ -779,7 +784,9 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typ
       dot.classList.add('warn');
       txt.textContent = 'Null passende Konstellationen';
     } else if (result.mode === 'exact') {
-      txt.textContent = 'Exakt gerechnet · ' + fmt(result.total) + ' Konstellationen passen noch';
+      txt.textContent = result.total === 1
+        ? 'Gelöst: nur noch eine Konstellation passt'
+        : 'Exakt gerechnet · ' + fmt(result.total) + ' Konstellationen passen noch';
     } else {
       dot.classList.add('busy');
       txt.textContent = 'Geschätzt aus ' + fmt(result.total) + ' Stichproben · wird exakt, sobald genug Daten da sind';
@@ -1063,11 +1070,13 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typ
     paintList($('menList'), state.men, 'men');
     paintList($('womenList'), state.women, 'women');
     var n = state.men.length, m = state.women.length;
+    $('menCount').textContent = n ? String(n) : '';
+    $('womenCount').textContent = m ? String(m) : '';
     var hint = $('setupHint');
     if (n === 0 || m === 0) hint.textContent = 'Trag beide Seiten ein.';
     else if (Math.abs(n - m) > 1) hint.textContent = 'Die Gruppen dürfen sich höchstens um eine Person unterscheiden. Aktuell ' + n + ' zu ' + m + '.';
-    else if (n === m) hint.textContent = 'Gleich gross, also kein Doppelmatch: jeder hat genau einen.';
-    else hint.textContent = 'Eine Seite hat eine Person mehr, also gibt es genau einen Doppelmatch.';
+    else if (n === m) hint.textContent = 'Gleich groß, kein Doppelmatch.';
+    else hint.textContent = 'Eine Person mehr auf einer Seite, also genau ein Doppelmatch.';
   }
 
   function paintList(ul, arr, which) {
