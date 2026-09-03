@@ -178,6 +178,8 @@
   button.remove:hover { background: var(--surface-2); color: var(--danger); }
 
   .seat-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
+  .seat-row .partner { flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; color: var(--muted); padding: 7px 2px; min-width: 0; }
+  .seat-row .partner .tag { flex-shrink: 0; }
   .seat-row .name { width: 92px; flex-shrink: 0; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .field { margin-bottom: 14px; }
   .field > .label { display: block; margin-bottom: 6px; }
@@ -608,7 +610,7 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typ
   'use strict';
 
   var KEY = 'ayto-tracker';
-  var EMPTY = { version: 1, seq: 0, mode: 'none', men: [], women: [], nights: [], boxes: [] };
+  var EMPTY = { version: 1, seq: 0, mode: 'double', men: [], women: [], nights: [], boxes: [] };
   var state = load();
   var result = null;
   var busy = false;
@@ -645,7 +647,7 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typ
       var big = Math.max(mn, wn);
       var voll = big > Math.min(mn, wn) && Array.isArray(d.nights) &&
         d.nights.some(function (x) { return x && Array.isArray(x.pairs) && x.pairs.length === big; });
-      out.mode = voll ? 'double' : 'none';
+      out.mode = voll ? 'double' : (Array.isArray(d.nights) && d.nights.length > 0 ? 'none' : 'double');
     }
     out.men = Array.isArray(d.men) ? d.men.filter(isName) : [];
     out.women = Array.isArray(d.women) ? d.women.filter(isName) : [];
@@ -797,7 +799,7 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typ
       return;
     }
     if (result && result.ok && result.total === 0) {
-      host.appendChild(notice('Keine einzige Konstellation passt zu allen Einträgen. Irgendwo im Verlauf steckt ein Fehler, meistens eine falsche Lichterzahl.', true));
+      host.appendChild(notice('Keine einzige Konstellation passt zu allen Einträgen. Meistens ist eine Lichterzahl falsch, oder das Format stimmt nicht: unter <strong>Kandidaten</strong> kannst du zwischen Doppelmatch und einer Person ohne Match wechseln.', true));
       return;
     }
 
@@ -1025,59 +1027,114 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typ
 
   var ALONE = 'x';
   var editingNight = null;
+  var nightCtx = null;
+
+  // Bestaetigte Paare aus Match-Boxen. Beim Bearbeiten einer alten Night zaehlen
+  // nur Boxen, die es zu diesem Zeitpunkt schon gab.
+  function confirmedPairs(beforeSeq) {
+    return state.boxes.filter(function (b) {
+      return b.match && (beforeSeq === null || b.seq < beforeSeq);
+    }).map(function (b) { return { man: b.man, woman: b.woman }; });
+  }
 
   function openNight(existing) {
     var s = shape();
     if (s.n === 0 || s.m === 0) { alert('Erst Kandidaten anlegen.'); return; }
-    if (s.maxDouble > 1) { alert('Die Gruppen dürfen sich höchstens um eine Person unterscheiden.'); return; }
+    if (s.extra > 1) { alert('Die Gruppen dürfen sich höchstens um eine Person unterscheiden.'); return; }
 
     editingNight = existing || null;
     $('nightTitle').textContent = existing ? 'Matching Night bearbeiten' : 'Neue Matching Night';
     $('nightError').textContent = '';
-    var maxLights = s.mode === 'none' ? s.S : s.B;
-    $('nightLights').max = String(maxLights);
-    $('nightLights').placeholder = '0 bis ' + maxLights;
     $('nightLights').oninput = function () { $('nightError').textContent = ''; };
     $('nightLights').value = existing ? String(existing.lights) : '';
 
+    // Bestaetigte Paare sitzen fest, ihr Licht brennt von selbst.
+    var fixed = confirmedPairs(existing ? existing.seq : null);
+    var takenBig = {}, takenSmall = {};
+    fixed.forEach(function (pr) {
+      takenBig[s.bigIsWomen ? pr.woman : pr.man] = true;
+      takenSmall[s.bigIsWomen ? pr.man : pr.woman] = true;
+    });
+    var activeBig = [], activeSmall = [];
+    s.bigNames.forEach(function (_, bi) { if (!takenBig[bi]) activeBig.push(bi); });
+    s.smallNames.forEach(function (_, si) { if (!takenSmall[si]) activeSmall.push(si); });
+    var activeExtra = Math.max(0, activeBig.length - activeSmall.length);
+    nightCtx = { fixed: fixed, activeBig: activeBig, activeSmall: activeSmall, activeExtra: activeExtra };
+
+    var maxLights = fixed.length + activeSmall.length + activeExtra;
+    $('nightLights').max = String(maxLights);
+    $('nightLights').placeholder = fixed.length + ' bis ' + maxLights;
+
     var host = $('seatRows');
     host.textContent = '';
+
+    if (fixed.length) {
+      var info = document.createElement('div');
+      info.className = 'hint';
+      info.style.marginTop = '0';
+      info.style.marginBottom = '10px';
+      info.textContent = fixed.length === 1
+        ? 'Das bestätigte Paar sitzt fest, sein Licht brennt von selbst. Trag die Gesamtzahl der Lichter ein.'
+        : 'Die ' + fixed.length + ' bestätigten Paare sitzen fest, ihre Lichter brennen von selbst. Trag die Gesamtzahl der Lichter ein.';
+      host.appendChild(info);
+
+      fixed.forEach(function (pr) {
+        var row = document.createElement('div');
+        row.className = 'seat-row fixed';
+        var lbl = document.createElement('div');
+        lbl.className = 'name';
+        lbl.textContent = s.bigIsWomen ? state.women[pr.woman] : state.men[pr.man];
+        var partner = document.createElement('div');
+        partner.className = 'partner';
+        var pname = document.createElement('span');
+        pname.textContent = s.bigIsWomen ? state.men[pr.man] : state.women[pr.woman];
+        var tag = document.createElement('span');
+        tag.className = 'tag yes';
+        tag.textContent = 'bestätigt';
+        partner.appendChild(pname);
+        partner.appendChild(tag);
+        row.appendChild(lbl);
+        row.appendChild(partner);
+        host.appendChild(row);
+      });
+    }
+
     var preset = {};
     if (existing) {
       existing.pairs.forEach(function (p) {
         var b = s.bigIsWomen ? p[1] : p[0];
         var sm = s.bigIsWomen ? p[0] : p[1];
-        preset[b] = sm;
+        if (!takenBig[b]) preset[b] = sm;
       });
     }
 
-    s.bigNames.forEach(function (name, bi) {
+    activeBig.forEach(function (bi) {
       var row = document.createElement('div');
       row.className = 'seat-row';
       var lbl = document.createElement('div');
       lbl.className = 'name';
-      lbl.textContent = name;
-      lbl.title = name;
+      lbl.textContent = s.bigNames[bi];
+      lbl.title = s.bigNames[bi];
       var sel = document.createElement('select');
       sel.dataset.big = String(bi);
       var opt0 = document.createElement('option');
       opt0.value = '';
       opt0.textContent = s.smallLabel + ' wählen';
       sel.appendChild(opt0);
-      s.smallNames.forEach(function (sn, si) {
+      activeSmall.forEach(function (si) {
         var o = document.createElement('option');
         o.value = String(si);
-        o.textContent = sn;
+        o.textContent = s.smallNames[si];
         sel.appendChild(o);
       });
-      if (s.mode === 'none' && s.extra === 1) {
+      if (activeExtra >= 1) {
         var oa = document.createElement('option');
         oa.value = ALONE;
         oa.textContent = 'sitzt allein';
         sel.appendChild(oa);
       }
       if (preset[bi] !== undefined) sel.value = String(preset[bi]);
-      else if (existing && s.mode === 'none' && s.extra === 1) sel.value = ALONE;
+      else if (existing && activeExtra >= 1) sel.value = ALONE;
       sel.onchange = refreshSeats;
       row.appendChild(lbl);
       row.appendChild(sel);
@@ -1095,6 +1152,7 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typ
   function refreshSeats() {
     $('nightError').textContent = '';
     var s = shape();
+    var ctx = nightCtx;
     var sels = seatSelects();
     var counts = {};
     var aloneCount = 0;
@@ -1103,80 +1161,81 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typ
       if (sel.value === ALONE) { aloneCount++; return; }
       counts[sel.value] = (counts[sel.value] || 0) + 1;
     });
-    var doublesUsed = Object.keys(counts).filter(function (k) { return counts[k] >= 2; }).length;
+    var doubled = Object.keys(counts).filter(function (k) { return counts[k] >= 2; });
+    // Der eine Ueberhang wird entweder durch Alleinsitzen oder Doppeltsitzen verbraucht.
+    var extraUsed = aloneCount + doubled.length;
 
     sels.forEach(function (sel) {
       Array.prototype.slice.call(sel.options).forEach(function (opt) {
         if (opt.value === '' || opt.value === sel.value) { opt.disabled = false; return; }
-        if (opt.value === ALONE) { opt.disabled = aloneCount >= s.extra; return; }
+        if (opt.value === ALONE) { opt.disabled = extraUsed >= ctx.activeExtra; return; }
         var c = counts[opt.value] || 0;
-        opt.disabled = c >= 1 + s.maxDouble || (c === 1 && doublesUsed >= s.maxDouble);
+        opt.disabled = c >= 2 || (c === 1 && extraUsed >= ctx.activeExtra);
       });
     });
 
     var offen = [], alleine = [];
-    s.bigNames.forEach(function (name, bi) {
-      if (!sels[bi]) return;
-      if (sels[bi].value === '') offen.push(name);
-      else if (sels[bi].value === ALONE) alleine.push(name);
+    sels.forEach(function (sel) {
+      var name = s.bigNames[sel.dataset.big | 0];
+      if (sel.value === '') offen.push(name);
+      else if (sel.value === ALONE) alleine.push(name);
     });
-    var doppelt = Object.keys(counts).filter(function (k) { return counts[k] >= 2; })
-      .map(function (k) { return s.smallNames[k | 0]; });
+    var doppelt = doubled.map(function (k) { return s.smallNames[k | 0]; });
     var ohnePlatz = [];
-    s.smallNames.forEach(function (name, si) { if (!counts[String(si)]) ohnePlatz.push(name); });
+    ctx.activeSmall.forEach(function (si) { if (!counts[String(si)]) ohnePlatz.push(s.smallNames[si]); });
 
     var parts = [];
     if (offen.length) parts.push('Noch offen: ' + offen.join(', '));
     if (alleine.length) parts.push('Sitzt allein: ' + alleine.join(', '));
     if (doppelt.length) parts.push('Doppelt gesetzt: ' + doppelt.join(', '));
     if (!offen.length && ohnePlatz.length) parts.push('Ohne Platz: ' + ohnePlatz.join(', '));
-    if (!offen.length && !parts.length && s.extra === 1) {
-      parts.push(s.mode === 'none'
-        ? 'Es fehlt noch die Person, die allein sitzt.'
-        : 'Es fehlt noch der ' + s.smallLabel + ', der doppelt sitzt.');
+    if (!offen.length && !parts.length && ctx.activeExtra >= 1) {
+      parts.push('Eine Person muss noch allein sitzen oder ein ' + s.smallLabel + ' doppelt.');
     }
     $('nightHint').textContent = parts.join(' · ');
   }
 
   function readNight() {
     var s = shape();
+    var ctx = nightCtx;
     var sels = seatSelects();
-    var pairs = [];
-    var counts = new Array(s.S).fill(0);
+    var pairs = ctx.fixed.map(function (pr) { return [pr.man, pr.woman]; });
+    var counts = {};
     var alone = 0;
 
-    for (var bi = 0; bi < s.B; bi++) {
-      var v = sels[bi].value;
+    for (var r = 0; r < sels.length; r++) {
+      var bi = sels[r].dataset.big | 0;
+      var v = sels[r].value;
       if (v === '') return { error: 'Für ' + s.bigNames[bi] + ' fehlt noch die Zuordnung.' };
       if (v === ALONE) { alone++; continue; }
       var si = v | 0;
-      counts[si]++;
+      counts[si] = (counts[si] || 0) + 1;
       pairs.push(s.bigIsWomen ? [si, bi] : [bi, si]);
     }
 
     var doubles = 0, missing = [];
-    for (var i = 0; i < s.S; i++) {
-      if (counts[i] === 0) missing.push(s.smallNames[i]);
-      if (counts[i] > 1 + s.maxDouble) return { error: s.smallNames[i] + ' sitzt zu oft.' };
-      if (counts[i] === 2) doubles++;
+    for (var i = 0; i < ctx.activeSmall.length; i++) {
+      var sIdx = ctx.activeSmall[i];
+      var c = counts[sIdx] || 0;
+      if (c === 0) missing.push(s.smallNames[sIdx]);
+      if (c > 2) return { error: s.smallNames[sIdx] + ' sitzt zu oft.' };
+      if (c === 2) doubles++;
     }
     if (missing.length) return { error: 'Ohne Platz: ' + missing.join(', ') + '.' };
-
-    if (s.mode === 'none') {
-      if (alone !== s.extra) {
-        return { error: s.extra === 1
-          ? 'Genau eine Person muss allein sitzen.'
-          : 'Bei gleich großen Gruppen sitzt niemand allein.' };
-      }
-    } else if (doubles !== s.maxDouble) {
-      return { error: 'Genau ein ' + s.smallLabel + ' muss doppelt sitzen.' };
+    if (doubles > 1) return { error: 'Höchstens ein ' + s.smallLabel + ' darf doppelt sitzen.' };
+    if (alone + doubles !== ctx.activeExtra) {
+      return { error: ctx.activeExtra === 1
+        ? 'Eine Person zu viel: entweder sitzt genau eine allein oder ein ' + s.smallLabel + ' doppelt.'
+        : 'Gleich viele auf beiden Seiten: niemand sitzt allein oder doppelt.' };
     }
 
     var raw = $('nightLights').value;
     if (raw === '' || isNaN(parseInt(raw, 10))) return { error: 'Trag die Zahl der Lichter ein.' };
     var lights = parseInt(raw, 10);
-    if (lights < 0 || lights > pairs.length) {
-      return { error: 'Die Lichter müssen zwischen 0 und ' + pairs.length + ' liegen.' };
+    if (lights < ctx.fixed.length || lights > pairs.length) {
+      return { error: ctx.fixed.length > 0
+        ? 'Die Lichter müssen zwischen ' + ctx.fixed.length + ' und ' + pairs.length + ' liegen. Die ' + ctx.fixed.length + ' bestätigten brennen immer mit.'
+        : 'Die Lichter müssen zwischen 0 und ' + pairs.length + ' liegen.' };
     }
 
     return { pairs: pairs, lights: lights };
@@ -1270,8 +1329,8 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function' && typ
     if (n === 0 || m === 0) hint.textContent = 'Trag beide Seiten ein.';
     else if (diff > 1) hint.textContent = 'Die Gruppen dürfen sich höchstens um eine Person unterscheiden. Aktuell ' + n + ' zu ' + m + '.';
     else if (diff === 0) hint.textContent = 'Gleich groß, jeder hat genau ein Match.';
-    else if (state.mode === 'none') hint.textContent = 'Eine Person zu viel. Diese eine hat gar kein Perfect Match und sitzt in jeder Matching Night allein.';
-    else hint.textContent = 'Eine Person zu viel. Dafür hat jemand aus der kleineren Gruppe zwei Perfect Matches und sitzt in jeder Matching Night doppelt.';
+    else if (state.mode === 'none') hint.textContent = 'Eine Person zu viel, und sie hat gar kein Perfect Match. Wer allein sitzt, kann trotzdem jede sein.';
+    else hint.textContent = 'Eine Person zu viel, dafür hat jemand aus der kleineren Gruppe zwei Perfect Matches. So läuft die aktuelle Staffel. In der Night kann trotzdem eine Person allein sitzen.';
   }
 
   function paintList(ul, arr, which) {
